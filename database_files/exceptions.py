@@ -1,0 +1,2 @@
+class DatabaseFilesEncryptionError(Exception):
+	pass

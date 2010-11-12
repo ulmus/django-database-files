@@ -4,11 +4,11 @@ from distutils.core import setup
  
 setup(
     name='django-database-files',
-    version='0.1',
-    description='A storage system for Django that stores uploaded files in the database.',
-    author='Ben Firshman',
-    author_email='ben@firshman.co.uk',
-    url='http://github.com/bfirsh/django-database-files/',
+    version='0.2',
+    description='A storage system for Django that stores uploaded files in the database. Based on Ben Fisherman\'s module and django snippet 1095',
+    author='Ben Fisherman, Jens Alm',
+    author_email='ben@firshman.co.uk, jens.alm@mac.com',
+    url='http://github.com/ulmus/django-database-files/',
     packages=[
         'database_files',
     ],
