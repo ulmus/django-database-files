@@ -1,3 +1,10 @@
+import warnings
+
+try:
+	from database_files.settings import *
+except ImportError:
+	warnings.warn(ImportWarning("Not able to import project settings for test."))
+
 DATABASE_ENGINE = 'sqlite3'
 ROOT_URLCONF = 'database_files.urls'
 INSTALLED_APPS = [
@@ -9,3 +16,4 @@ INSTALLED_APPS = [
     'database_files.tests',
 ]
 DEFAULT_FILE_STORAGE = 'database_files.storage.DatabaseStorage'
+SECRET_KEY = 't@+277(%&(js_#r^^o)^32+7%a&un+e6y9n_jiwpui0#r!2-@n'

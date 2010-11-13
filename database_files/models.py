@@ -22,12 +22,13 @@ try:
 except ImportError:
 	pass
 else:
-	cipher = AES.new(settings.SECRET_KEY[:32])
+	if settings.SECRET_KEY:
+		cipher = AES.new(settings.SECRET_KEY[:32])
 
-DATABASE_FILES_CACHE = settings.get("DATABASE_FILES_CACHE", False)
-DATABASE_FILES_CACHE_UNENCRYPTED = settings.get("DATABASE_FILES_CACHE_UNENCRYPTED", False)
-DATABASE_FILES_COMPRESSION_EXCLUDE = settings.get("DATABASE_FILES_COMPRESSION_EXCLUDE",("zip", "gz", "rar", "jpg", "jpeg", "gif", "png", "mpg", "mpeg", "qt", "avi", "mov", "mkv"))
-DATABASE_FILES_SECRET_KEY = settings.get("DATABASE_FILES_SECRET_KEY", settings.get("DATABASE_FILES_SECRET_KEY",None))
+DATABASE_FILES_CACHE = getattr(settings,"DATABASE_FILES_CACHE", False)
+DATABASE_FILES_CACHE_UNENCRYPTED = getattr(settings,"DATABASE_FILES_CACHE_UNENCRYPTED", False)
+DATABASE_FILES_COMPRESSION_EXCLUDE = getattr(settings,"DATABASE_FILES_COMPRESSION_EXCLUDE",("zip", "gz", "rar", "jpg", "jpeg", "gif", "png", "mpg", "mpeg", "qt", "avi", "mov", "mkv"))
+DATABASE_FILES_SECRET_KEY = getattr(settings,"DATABASE_FILES_SECRET_KEY", getattr(settings,"SECRET_KEY",None))
 
 class File(models.Model):
 	filestore = models.OneToOneField("FileStore", blank=True)

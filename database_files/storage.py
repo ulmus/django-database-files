@@ -3,7 +3,7 @@ from django.core.files.storage import Storage
 from django.core.urlresolvers import reverse
 from django.conf import settings
 
-DATABASE_FILES_COMPRESSION = settings.get("DATABASE_FILES_COMPRESSION", False)
+DATABASE_FILES_COMPRESSION = getattr(settings,"DATABASE_FILES_COMPRESSION", False)
 
 class DatabaseStorage(Storage):
 
