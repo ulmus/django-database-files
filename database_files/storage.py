@@ -4,6 +4,7 @@ from django.core.urlresolvers import reverse
 from django.conf import settings
 
 DATABASE_FILES_COMPRESSION = getattr(settings,"DATABASE_FILES_COMPRESSION", False)
+DATABASE_FILES_ENCRYPTION = getattr(settings,"DATABASE_FILES_ENCRYPTION", False)
 
 class DatabaseStorage(Storage):
 
@@ -12,33 +13,34 @@ class DatabaseStorage(Storage):
 		encryption = DATABASE_FILES_ENCRYPTION or encryption
 		super(DatabaseStorage, self).__init__()
 
-	def _generate_name(self, name, pk):
+	def _generate_name(self, pk):
 		"""
 		Replaces the filename with the specified pk
 		"""
-		return '%s' % pk
+		return str(pk)
 
 	def _open(self, name, mode='rb'):
 		try:
-			f = models.File.objects.get(pk=name)
-		except models.File.DoesNotExist:
+			f = models.DatabaseFile.objects.get(pk=name)
+		except models.DatabaseFile.DoesNotExist:
 			return None
 		return f.retreive()
 
 	def _save(self, name, content):
-		f = models.File.objects.create(
-				file_name = name,
+		f = models.DatabaseFile.objects.create(
+				filepath = name,
 				)
 		f.store(content)
-		return self._generate_name(name, f.pk)
+		return self._generate_name(f.pk)
 
 	def exists(self, name):
-		return models.File.objects.filter(pk=name).exists()
+		return False
+		# return models.File.objects.filter(filepath=name).exists()
 
 	def delete(self, name):
 		try:
-			models.File.objects.get(pk=name).delete()
-		except models.File.DoesNotExist:
+			models.DatabaseFile.objects.get(pk=name).delete()
+		except models.DatabaseFile.DoesNotExist:
 			pass
 
 	def url(self, name):
@@ -46,24 +48,24 @@ class DatabaseStorage(Storage):
 
 	def size(self, name):
 		try:
-			return models.File.objects.get(pk=name).size
-		except models.File.DoesNotExist:
+			return models.DatabaseFile.objects.get(pk=name).size
+		except models.DatabaseFile.DoesNotExist:
 			return 0
 
 	def modified_time(self, name):
 		try:
-			return models.File.objects.get(pk=name).modified_time
-		except models.File.DoesNotExist:
+			return models.DatabaseFile.objects.get(pk=name).modified_time
+		except models.DatabaseFile.DoesNotExist:
 			return None
 
 	def accessed_time(self, name):
 		try:
-			return models.File.objects.get(pk=name).accessed_time
-		except models.File.DoesNotExist:
+			return models.DatabaseFile.objects.get(pk=name).accessed_time
+		except models.DatabaseFile.DoesNotExist:
 			return None
 
 	def created_time(self, name):
 		try:
-			return models.File.objects.get(pk=name).created_time
-		except models.File.DoesNotExist:
+			return models.DatabaseFile.objects.get(pk=name).created_time
+		except models.DatabaseFile.DoesNotExist:
 			return None

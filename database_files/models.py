@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.signals import post_save
 from django.conf import settings
 from django.core import files
 from django.core.cache import cache
@@ -9,8 +10,12 @@ import random
 import binascii
 import os
 from datetime import datetime
+from django.core.exceptions import ObjectDoesNotExist
+
+
 
 # Use cStringIO if available, for performance
+from django.db.models import permalink
 
 try:
 	from cStringIO import StringIO
@@ -30,8 +35,14 @@ DATABASE_FILES_CACHE_UNENCRYPTED = getattr(settings,"DATABASE_FILES_CACHE_UNENCR
 DATABASE_FILES_COMPRESSION_EXCLUDE = getattr(settings,"DATABASE_FILES_COMPRESSION_EXCLUDE",("zip", "gz", "rar", "jpg", "jpeg", "gif", "png", "mpg", "mpeg", "qt", "avi", "mov", "mkv"))
 DATABASE_FILES_SECRET_KEY = getattr(settings,"DATABASE_FILES_SECRET_KEY", getattr(settings,"SECRET_KEY",None))
 
-class File(models.Model):
-	filestore = models.OneToOneField("FileStore", blank=True)
+class DatabaseFileStore(models.Model):
+	"""
+	The content is set in another model to avoid loading it prematurely if it was cached
+	"""
+	content = models.TextField(blank=True, null=True)
+
+class DatabaseFile(models.Model):
+	filestore = models.OneToOneField("DatabaseFileStore", blank=True, null=True)
 	filepath = models.TextField(max_length=250, blank=True, null=True)
 	size = models.IntegerField(blank=True, null=True)
 	encrypted = models.BooleanField(default=False, editable=False)
@@ -40,10 +51,9 @@ class File(models.Model):
 	modified_time = models.DateTimeField(auto_now=True)
 	accessed_time = models.DateTimeField(auto_now_add=True)
 
-	def save(self, *args, **kwargs):
-		if not self.filestore:
-			self.filestore = FileStore()
-		super(File, self).save(*args, **kwargs)
+	@permalink
+	def get_absolute_url(self):
+		return ('database_file', [str(self.id)])
 
 	def store(self, file, encrypt=False, compress=False):
 		"""
@@ -55,7 +65,7 @@ class File(models.Model):
 		"""
 		string = file.read()
 		self.size = file.size
-		self.filepath = file.filename
+		self.filepath = file.name
 
 		if DATABASE_FILES_CACHE and DATABASE_FILES_CACHE_UNENCRYPTED:
 			# Pre-fill the cache, the reasoning being that the file will probably be needed
@@ -72,13 +82,24 @@ class File(models.Model):
 			string = self._encrypt_string(string)
 			self.encrypted = True
 
-		self.filestore.content = self._encode_string(string)
+		self._store_string(self._encode_string(string))
 
 		if DATABASE_FILES_CACHE and not DATABASE_FILES_CACHE_UNENCRYPTED:
 			# Pre-fill the cache,
 			cache.set(self.get_cache_key(), string)
 
 		self.save()
+
+	def _store_string(self, string):
+		if self.filestore:
+			self.filestore.delete()
+		self.filestore = DatabaseFileStore(content=string)
+
+	def _retreive_string(self):
+		if self.filestore:
+			return self.filestore.content
+		else:
+			return ""
 
 	def retreive(self, mode="rb"):
 		"""
@@ -88,25 +109,28 @@ class File(models.Model):
 		if DATABASE_FILES_CACHE:
 			string = cache.get(self.get_cache_key())
 			if not string:
-				string = self._decode_string(self.filestore.content)
+				string = self._decode_string(self._retreive_string())
 				if not DATABASE_FILES_CACHE_UNENCRYPTED:
 					string = self._process_string(string)
 				cache.set(self.get_cache_key(), string)
 			else:
-				string = self._decode_string(self.filestore.content)
+				string = self._decode_string(self._retreive_string())
 				string = self._process_string(string)
 		else:
-			string = self._decode_string(self.filestore.content)
+			string = self._decode_string(self._retreive_string())
 			string = self._process_string(string)
 
-		file_handle = StringIO(string)
-		file_handle.name = self.filepath
-		file_handle.mode = mode
-		file_handle.size = self.size
+		string_file = StringIO(string)
+		django_file = files.File(string_file)
+		django_file.name = self.filepath
+		django_file.mode = mode
+		django_file.size = self.size
+		django_file.url = self.get_absolute_url()
 
 		self.accessed_time = datetime.now()
 		self.save()
-		return files.File(file_handle)
+		import pdb; pdb.debug()
+		return django_file
 
 	def _decode_string(self, string):
 		return base64.b64decode(string)
@@ -156,8 +180,3 @@ class File(models.Model):
 	def get_cache_key(self):
 		return "DJANGO-DATABASE_FILE-%s" % self.pk
 
-class FileStore(models.Model):
-	"""
-	The content is set in another model to avoid loading it prematurely if it was cached
-	"""
-	content = models.TextField(blank=True, null=True)
