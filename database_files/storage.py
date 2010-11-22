@@ -1,17 +1,10 @@
 from database_files import models
+from database_files.module_settings import DBF_SETTINGS
 from django.core.files.storage import Storage
 from django.core.urlresolvers import reverse
 from django.conf import settings
 
-DATABASE_FILES_COMPRESSION = getattr(settings,"DATABASE_FILES_COMPRESSION", False)
-DATABASE_FILES_ENCRYPTION = getattr(settings,"DATABASE_FILES_ENCRYPTION", False)
-
 class DatabaseStorage(Storage):
-
-	def __init__(self, encryption=False, compression=False):
-		compression = DATABASE_FILES_COMPRESSION or compression
-		encryption = DATABASE_FILES_ENCRYPTION or encryption
-		super(DatabaseStorage, self).__init__()
 
 	def _generate_name(self, pk):
 		"""
@@ -28,9 +21,12 @@ class DatabaseStorage(Storage):
 
 	def _save(self, name, content):
 		f = models.DatabaseFile.objects.create(
-				filepath = name,
+				filepath=name,
 				)
-		f.store(content)
+		f.store(content,
+				encrypt=DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"],
+				compress=DBF_SETTINGS["DATABASE_FILES_COMPRESSION"],
+				)
 		return self._generate_name(f.pk)
 
 	def exists(self, name):

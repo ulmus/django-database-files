@@ -4,11 +4,13 @@ from django.conf import settings
 from django.core import files
 from django.core.cache import cache
 from database_files.exceptions import DatabaseFilesEncryptionError
+from database_files.module_settings import DBF_SETTINGS
 import base64
 import zlib
 import random
 import binascii
 import os
+import string
 from datetime import datetime
 from django.core.exceptions import ObjectDoesNotExist
 
@@ -30,10 +32,6 @@ else:
 	if settings.SECRET_KEY:
 		cipher = AES.new(settings.SECRET_KEY[:32])
 
-DATABASE_FILES_CACHE = getattr(settings,"DATABASE_FILES_CACHE", False)
-DATABASE_FILES_CACHE_UNENCRYPTED = getattr(settings,"DATABASE_FILES_CACHE_UNENCRYPTED", False)
-DATABASE_FILES_COMPRESSION_EXCLUDE = getattr(settings,"DATABASE_FILES_COMPRESSION_EXCLUDE",("zip", "gz", "rar", "jpg", "jpeg", "gif", "png", "mpg", "mpeg", "qt", "avi", "mov", "mkv"))
-DATABASE_FILES_SECRET_KEY = getattr(settings,"DATABASE_FILES_SECRET_KEY", getattr(settings,"SECRET_KEY",None))
 
 class DatabaseFileStore(models.Model):
 	"""
@@ -50,6 +48,7 @@ class DatabaseFile(models.Model):
 	created_time = models.DateTimeField(auto_now_add=True)
 	modified_time = models.DateTimeField(auto_now=True)
 	accessed_time = models.DateTimeField(auto_now_add=True)
+	padding_length = models.SmallIntegerField(default=0)
 
 	@permalink
 	def get_absolute_url(self):
@@ -63,41 +62,45 @@ class DatabaseFile(models.Model):
 		otherwise it does nothing
 		compress = compress the file using zlib compression
 		"""
-		string = file.read()
+		estring = file.read()
 		self.size = file.size
 		self.filepath = file.name
 
-		if DATABASE_FILES_CACHE and DATABASE_FILES_CACHE_UNENCRYPTED:
+		if DBF_SETTINGS["DATABASE_FILES_CACHE"] and DBF_SETTINGS["DATABASE_FILES_CACHE_UNENCRYPTED"]:
 			# Pre-fill the cache, the reasoning being that the file will probably be needed
 			# immediately after storing
-			cache.set(self.get_cache_key(), base64.binascii.b2a_hex(string))
+			cache.set(self.get_cache_key(), estring)
 
 		if compress:
 			# Compress using zlib, this should be done before encryption
-			if not self.get_extension() in DATABASE_FILES_COMPRESSION_EXCLUDE:
-				string = zlib.compress(string)
+			if not self.get_extension() in DBF_SETTINGS["DATABASE_FILES_COMPRESSION_EXCLUDE"]:
+				estring = zlib.compress(estring)
 				self.compressed = True
 
-		if encrypt and cipher and DATABASE_FILES_SECRET_KEY:
-			string = self._encrypt_string(string)
+		if encrypt and cipher and DBF_SETTINGS["DATABASE_FILES_SECRET_KEY"]:
+			estring = self._encrypt_string(estring)
 			self.encrypted = True
 
-		self._store_string(self._encode_string(string))
+		estring = self._encode_string(estring)
+		self._store_string(estring)
 
-		if DATABASE_FILES_CACHE and not DATABASE_FILES_CACHE_UNENCRYPTED:
+		if DBF_SETTINGS["DATABASE_FILES_CACHE"] and not DBF_SETTINGS["DATABASE_FILES_CACHE_UNENCRYPTED"]:
 			# Pre-fill the cache,
-			cache.set(self.get_cache_key(), string)
+			cache.set(self.get_cache_key(), estring)
 
 		self.save()
 
-	def _store_string(self, string):
+	def _store_string(self, estring):
 		if self.filestore:
 			self.filestore.delete()
-		self.filestore = DatabaseFileStore(content=string)
+		filestore = DatabaseFileStore(content=estring.encode("utf-8"))
+		filestore.save()
+		self.filestore = filestore
+		self.save()
 
 	def _retreive_string(self):
 		if self.filestore:
-			return self.filestore.content
+			return unicode(self.filestore.content)
 		else:
 			return ""
 
@@ -105,22 +108,22 @@ class DatabaseFile(models.Model):
 		"""
 		Constructs and returns a django file object from content
 		"""
-
-		if DATABASE_FILES_CACHE:
-			string = cache.get(self.get_cache_key())
-			if not string:
-				string = self._decode_string(self._retreive_string())
+		if DBF_SETTINGS["DATABASE_FILES_CACHE"]:
+			estring = cache.get(self.get_cache_key())
+			if not estring:
+				estring = self._decode_string(self._retreive_string())
 				if not DATABASE_FILES_CACHE_UNENCRYPTED:
-					string = self._process_string(string)
-				cache.set(self.get_cache_key(), string)
+					estring = self._process_string(estring)
+				cache.set(self.get_cache_key(), estring)
 			else:
-				string = self._decode_string(self._retreive_string())
-				string = self._process_string(string)
+				estring = self._decode_string(self._retreive_string())
+				estring = self._process_string(estring)
 		else:
-			string = self._decode_string(self._retreive_string())
-			string = self._process_string(string)
+			estring = self._retreive_string()
+			estring = self._decode_string(estring)
+			estring = self._process_string(estring)
 
-		string_file = StringIO(string)
+		string_file = StringIO(estring)
 		django_file = files.File(string_file)
 		django_file.name = self.filepath
 		django_file.mode = mode
@@ -129,35 +132,46 @@ class DatabaseFile(models.Model):
 
 		self.accessed_time = datetime.now()
 		self.save()
-		import pdb; pdb.debug()
 		return django_file
 
-	def _decode_string(self, string):
-		return base64.b64decode(string)
+	def get_raw_string(self):
+		# Mainly meant for testing
+		return self._retreive_string()
 
-	def _encode_string(self, string):
-		return base64.b64encode((string))
+	def get_decoded_string(self):
+		# Mainly meant for testing
+		estring = self._retreive_string()
+		estring = self._decode_string(estring)
+		return estring
 
-	def _encrypt_string(self, string):
+	def _decode_string(self, estring):
+		return base64.b64decode(estring)
+
+	def _encode_string(self, estring):
+		return base64.b64encode(estring)
+
+	def _encrypt_string(self, estring):
 		# Encrypt using the AES algorithm and the site's Secret Key
-		padding  = cipher.block_size - len(string) % cipher.block_size
+		padding = cipher.block_size - len(estring) % cipher.block_size
 		if padding and padding < cipher.block_size:
-			string += "\0" + ''.join([random.choice(string.printable) for index in range(padding-1)])
-		return cipher.encrypt(string)
+			estring += ''.join([random.choice(string.printable) for index in range(padding)])
+			self.padding_length = padding
+			self.save()
+		return cipher.encrypt(estring)
 
-	def _decrypt_string(self, string):
+	def _decrypt_string(self, estring):
 		if not cipher:
 			raise DatabaseFilesEncryptionError("Trying to decrypt file '%s', encryption module not found" % self.filepath)
-		if not DATABASE_FILES_SECRET_KEY:
-			raise DatabaseFilesEncryptionError("Trying to decrypt file '%s', SECRET_KEY not set" % self.filepath)
-		return cipher.decrypt().split('\0')[0]		
+		if not DBF_SETTINGS["DATABASE_FILES_SECRET_KEY"]:
+			raise DatabaseFilesEncryptionError("Trying to decrypt file '%s', neither SECRET_KEY nor DATABASE_FILES_SECRET_KEY set." % self.filepath)
+		return cipher.decrypt(estring)[:len(estring) - self.padding_length]
 
-	def _process_string(self, string):
+	def _process_string(self, estring):
 		if self.encrypted:
-			string = self._decrypt_string(string)
+			estring = self._decrypt_string(estring)
 		if self.compressed:
-			string = zlib.decompress(string)
-		return string
+			estring = zlib.decompress(estring)
+		return estring
 
 	def get_filename(self):
 		dir_name, file_name = os.path.split(self.filepath)
@@ -169,12 +183,12 @@ class DatabaseFile(models.Model):
 
 	def get_extension(self):
 		filename = self.get_filename()
-		file_root, file_ext = os.path.splitext(file_name)
+		file_root, file_ext = os.path.splitext(filename)
 		return file_ext
 
 	def get_fileroot(self):
 		filename = self.get_filename()
-		file_root, file_ext = os.path.splitext(file_name)
+		file_root, file_ext = os.path.splitext(filename)
 		return file_root
 
 	def get_cache_key(self):

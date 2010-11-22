@@ -12,3 +12,4 @@ INSTALLED_APPS = [
 ]
 DEFAULT_FILE_STORAGE = 'database_files.storage.DatabaseStorage'
 SECRET_KEY = 't@+277(%&(js_#r^^o)^32+7%a&un+e6y9n_jiwpui0#r!2-@n'
+CACHE_BACKEND = 'locmem://'
