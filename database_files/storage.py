@@ -6,6 +6,11 @@ from django.conf import settings
 
 class DatabaseStorage(Storage):
 
+	def __init__(self, encrypt=DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"], compress=DBF_SETTINGS["DATABASE_FILES_COMPRESSION"], *args, **kwargs):
+		self.encrypt = encrypt
+		self.compress = compress
+		super(DatabaseStorage, self).__init__(*args, **kwargs)
+
 	def _generate_name(self, pk):
 		"""
 		Replaces the filename with the specified pk
@@ -24,8 +29,8 @@ class DatabaseStorage(Storage):
 				filepath=name,
 				)
 		f.store(content,
-				encrypt=DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"],
-				compress=DBF_SETTINGS["DATABASE_FILES_COMPRESSION"],
+				encrypt=self.encrypt,
+				compress=self.compress,
 				)
 		return self._generate_name(f.pk)
 
@@ -40,7 +45,7 @@ class DatabaseStorage(Storage):
 			pass
 
 	def url(self, name):
-		return reverse('database_file', kwargs={'name': name})
+		return reverse('database_file', kwargs={'file_id': name})
 
 	def size(self, name):
 		try:

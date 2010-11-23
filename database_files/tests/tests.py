@@ -1,22 +1,35 @@
 # -*- coding: utf-8 -*-
 from database_files.models import DatabaseFile
 from database_files.module_settings import DBF_SETTINGS
-from database_files.tests.models import Thing
+from database_files.tests.models import *
 from django.core.cache import cache
 from django.core import files
 from django.test import TestCase
 import StringIO
 
-def create_test_object(estring):
+def create_test_object(estring, encrypted=False, compressed=False):
 	test_file = files.temp.NamedTemporaryFile(
 			suffix='.txt',
 			dir=files.temp.gettempdir()
 			)
 	test_file.write(estring)
 	test_file.seek(0)
-	t = Thing.objects.create(
-			upload=files.File(test_file),
-			)
+	if not encrypted and not compressed:
+		t = Thing.objects.create(
+				upload=files.File(test_file),
+				)
+	if encrypted and not compressed:
+		t = EncryptedThing.objects.create(
+				upload=files.File(test_file),
+				)
+	if not encrypted and compressed:
+		t = CompressedThing.objects.create(
+				upload=files.File(test_file),
+				)
+	if encrypted and compressed:
+		t = CompressedEncryptedThing.objects.create(
+				upload=files.File(test_file),
+				)
 	return t, test_file
 
 class DatabaseFilesTestCase(TestCase):
@@ -32,9 +45,11 @@ class DatabaseFilesTestCase(TestCase):
 		self.assertEqual(DatabaseFile.objects.count(), 0)
 
 class DatabaseFilesViewTestCase(TestCase):
+	compress = False
+	encrypt = False
 
 	def test_create_and_readback_file(self):
-		t, test_file = create_test_object('1234567890')
+		t, test_file = create_test_object('1234567890', self.encrypt, self.compress)
 		response = self.client.get('/1')
 		self.assertEqual(response.content, '1234567890')
 		self.assertEqual(response['content-type'], 'text/plain')
@@ -42,7 +57,7 @@ class DatabaseFilesViewTestCase(TestCase):
 
 	def test_content_in_database(self):
 		estring = '1234567890'
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
 		response = self.client.get('/1')
 		self.assertFalse(database_file.encrypted)
@@ -58,40 +73,28 @@ class DatabaseFilesViewTestCase(TestCase):
 		self.assertEqual(response.content, estring)
 
 class DatabaseFilesEncryptedTestCase(DatabaseFilesViewTestCase):
-
-	def setUp(self):
-		self.encryption_setting = DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"]
-		DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"] = True
-		super(DatabaseFilesEncryptedTestCase, self).setUp()
+	encrypt = True
+	compress = False
 
 	def test_content_in_database(self):
 		estring = '1234567890'
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
-		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"])
 		self.assertTrue(database_file.encrypted)
 		response = self.client.get('/1')
 		self.assertEqual(response.content, estring)
 		self.assertNotEqual(database_file.get_decoded_string(), estring)
 		self.assertNotEqual(database_file.get_raw_string(), estring)
 
-	def tearDown(self):
-		DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"] = self.encryption_setting
-		super(DatabaseFilesEncryptedTestCase, self).tearDown()
-
 
 class DatabaseFilesCompressedTestCase(DatabaseFilesViewTestCase):
-
-	def setUp(self):
-		self.compression_setting = DBF_SETTINGS["DATABASE_FILES_COMPRESSION"]
-		DBF_SETTINGS["DATABASE_FILES_COMPRESSION"] = True
-		super(DatabaseFilesCompressedTestCase, self).setUp()
+	encrypt = False
+	compress = True
 
 	def test_content_in_database(self):
 		estring = '1234567890'
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
-		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_COMPRESSION"])
 		self.assertTrue(database_file.compressed)
 		response = self.client.get('/1')
 		self.assertEqual(response.content, estring)
@@ -105,34 +108,25 @@ Vivamus sit amet metus ullamcorper lectus sollicitudin faucibus. Nunc ullamcorpe
 Praesent pretium dignissim ultricies. Praesent volutpat tincidunt dui, pharetra fermentum diam pulvinar at. Quisque egestas sem at lectus mollis in molestie ante tempor. Aenean adipiscing ipsum non elit interdum sit amet varius sapien iaculis. Phasellus pretium enim venenatis lorem blandit a vulputate nibh dictum. Etiam non nibh nec mi gravida suscipit sit amet in eros. Sed non lacus vitae nunc sodales malesuada et quis libero. Cras dignissim mi et dui pulvinar iaculis. Sed vel ligula bibendum felis euismod luctus in sit amet sem. Ut eget magna metus. Etiam consectetur turpis nibh. Nunc ac vestibulum quam. Proin vel dolor felis. Phasellus nisi urna, imperdiet id molestie eget, rhoncus a diam. Praesent aliquam consequat leo a imperdiet. Sed quis urna ipsum. Nulla vel metus tellus, at tincidunt odio.
 Pellentesque metus ligula, commodo quis lacinia id, aliquam nec libero. Morbi nulla eros, lobortis ac faucibus fermentum, aliquam vitae massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Fusce aliquam lacinia aliquet. Aenean at tincidunt tellus. Donec sagittis eleifend erat non viverra. Nulla facilisi. Aliquam sit amet pretium diam. Cras vitae felis nec est pretium vulputate. Praesent odio tellus, facilisis et viverra a, mollis aliquet risus.
 		"""
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
 		db_length = len(database_file.get_raw_string())
 		estring_length = len(estring)
 		print "Compression saved " + unicode((estring_length - db_length) * 100 / estring_length) + "%"
 		self.assertTrue(db_length < estring_length)
 
-	def tearDown(self):
-		DBF_SETTINGS["DATABASE_FILES_COMPRESSION"] = self.compression_setting
-		super(DatabaseFilesCompressedTestCase, self).tearDown()
-
 class DatabaseFilesCompressedEncryptedTestCase(DatabaseFilesCompressedTestCase):
-
-	def setUp(self):
-		self.encryption_setting = DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"]
-		DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"] = True
-		super(DatabaseFilesCompressedEncryptedTestCase, self).setUp()
+	encrypt = True
+	compress = True
 
 	def test_encrypted_vs_unencrypted(self):
 		estring = '1234567890'
-		t_enc, test_file_enc = create_test_object(estring)
+		t_enc, test_file_enc = create_test_object(estring, self.encrypt, self.compress)
 		database_file_enc = DatabaseFile.objects.get(pk=1)
 		response_enc = self.client.get('/1')
-		DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"] = False
-		t_nenc, test_file_nenc = create_test_object(estring)
+		t_nenc, test_file_nenc = create_test_object(estring, encrypted=False, compressed=self.compress)
 		database_file_nenc = DatabaseFile.objects.get(pk=2)
 		response_nenc = self.client.get('/2')
-		DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"] = False
 		self.assertTrue(database_file_enc.encrypted)
 		self.assertFalse(database_file_nenc.encrypted)
 		self.assertFalse(database_file_enc.get_raw_string() == database_file_nenc.get_raw_string())
@@ -140,10 +134,8 @@ class DatabaseFilesCompressedEncryptedTestCase(DatabaseFilesCompressedTestCase):
 
 	def test_content_in_database(self):
 		estring = '1234567890'
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
-		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_COMPRESSION"])
-		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"])
 		self.assertTrue(database_file.compressed)
 		self.assertTrue(database_file.encrypted)
 		response = self.client.get('/1')
@@ -151,11 +143,9 @@ class DatabaseFilesCompressedEncryptedTestCase(DatabaseFilesCompressedTestCase):
 		self.assertNotEqual(database_file.get_decoded_string(), estring)
 		self.assertNotEqual(database_file.get_raw_string(), estring)
 
-	def tearDown(self):
-		DBF_SETTINGS["DATABASE_FILES_ENCRYPTION"] = self.encryption_setting
-		super(DatabaseFilesCompressedEncryptedTestCase, self).tearDown()
-
 class DatabaseFilesCacheTestCase(DatabaseFilesViewTestCase):
+	encrypt = False
+	compress = False
 
 	def setUp(self):
 		self.cache_setting = DBF_SETTINGS["DATABASE_FILES_CACHE"]
@@ -171,8 +161,8 @@ class DatabaseFilesCacheTestCase(DatabaseFilesViewTestCase):
 		self.assertFalse(cache.get(cache_key1))
 		cache.set(cache_key2, None)
 		self.assertFalse(cache.get(cache_key2))
-		t1, test_file1 = create_test_object(estring)
-		t2, test_file2 = create_test_object(fstring)
+		t1, test_file1 = create_test_object(estring, self.encrypt, self.compress)
+		t2, test_file2 = create_test_object(fstring, self.encrypt, self.compress)
 		database_file1 = DatabaseFile.objects.get(pk=1)
 		database_file2 = DatabaseFile.objects.get(pk=2)
 		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_CACHE"])
@@ -182,14 +172,13 @@ class DatabaseFilesCacheTestCase(DatabaseFilesViewTestCase):
 		self.assertEqual(database_file1.get_raw_string(), cache.get(cache_key1))
 		self.assertEqual(database_file2.get_raw_string(), cache.get(cache_key2))
 
-
-
-
 	def tearDown(self):
 		DBF_SETTINGS["DATABASE_FILES_CACHE"] = self.cache_setting
 		super(DatabaseFilesCacheTestCase, self).tearDown()
 
 class DatabaseFilesCompressedEncryptedCachedTestCase(DatabaseFilesCompressedEncryptedTestCase):
+	compress = True
+	encrypt = True
 
 	def setUp(self):
 		self.cache_setting = DBF_SETTINGS["DATABASE_FILES_CACHE"]
@@ -201,7 +190,7 @@ class DatabaseFilesCompressedEncryptedCachedTestCase(DatabaseFilesCompressedEncr
 		cache_key = "DJANGO-DATABASE_FILE-1"
 		cache.set(cache_key, None)
 		self.assertFalse(cache.get(cache_key))
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
 		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_CACHE"])
 		response = self.client.get('/1')
@@ -214,6 +203,8 @@ class DatabaseFilesCompressedEncryptedCachedTestCase(DatabaseFilesCompressedEncr
 		super(DatabaseFilesCompressedEncryptedCachedTestCase, self).tearDown()
 
 class DatabaseFilesCompressedEncryptedCachedUnencryptedTestCase(DatabaseFilesCompressedEncryptedCachedTestCase):
+	compress = True
+	encrypt = True
 
 	def setUp(self):
 		self.cache_unencrypted_setting = DBF_SETTINGS["DATABASE_FILES_CACHE_UNENCRYPTED"]
@@ -224,7 +215,7 @@ class DatabaseFilesCompressedEncryptedCachedUnencryptedTestCase(DatabaseFilesCom
 		cache_key = "DJANGO-DATABASE_FILE-1"
 		estring = '1234567890'
 		cache.set(cache_key, None)
-		t, test_file = create_test_object(estring)
+		t, test_file = create_test_object(estring, self.encrypt, self.compress)
 		database_file = DatabaseFile.objects.get(pk=1)
 		self.assertTrue(DBF_SETTINGS["DATABASE_FILES_CACHE"])
 		response = self.client.get('/1')
