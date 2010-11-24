@@ -112,7 +112,7 @@ class DatabaseFile(models.Model):
 			estring = cache.get(self.get_cache_key())
 			if not estring:
 				estring = self._decode_string(self._retreive_string())
-				if not DATABASE_FILES_CACHE_UNENCRYPTED:
+				if not DBF_SETTINGS["DATABASE_FILES_CACHE_UNENCRYPTED"]:
 					estring = self._process_string(estring)
 				cache.set(self.get_cache_key(), estring)
 			else:
@@ -124,7 +124,8 @@ class DatabaseFile(models.Model):
 			estring = self._process_string(estring)
 
 		string_file = StringIO(estring)
-		django_file = files.File(string_file)
+		django_file = DFile(string_file)
+		django_file.db_filename = self.filepath
 		django_file.name = self.filepath
 		django_file.mode = mode
 		django_file.size = self.size
@@ -194,3 +195,5 @@ class DatabaseFile(models.Model):
 	def get_cache_key(self):
 		return "DJANGO-DATABASE_FILE-%s" % self.pk
 
+class DFile(files.File):
+	db_filename = ""
