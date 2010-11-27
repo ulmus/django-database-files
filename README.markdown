@@ -29,10 +29,9 @@ In ``settings.py``, add ``database_files`` to your ``INSTALLED_APPS`` and add th
 
     DEFAULT_FILE_STORAGE = 'database_files.storage.DatabaseStorage'
 
-Although ``upload_to`` is a required argument on ``FileField``, it is not used for 
-storing files in the database. Just set it to a dummy value:
-
-    upload = models.FileField(upload_to='not required')
+The ``upload_to`` argument is used to construct a unique identifier for the file and
+django-database-files will act as a normal filesystem when seen from Django, including
+renaming of identical files.
 
 All your ``FileField`` and ``ImageField`` files will now be stored in the 
 database.
@@ -60,9 +59,10 @@ files are encrypted using AES and your ``DATABASE_FILES_SECRET_KEY`` that defaul
 Caching
 -------
 
-If ``DATABASE_FILES_CACHE`` is set, the DatabaseStorage will use the cache provided in the ´´´CACHE_BACKEND´´ to cache file
+If ``DATABASE_FILES_CACHE`` is set, the DatabaseStorage will use the cache provided in the ``CACHE_BACKEND`` to cache file
 content to avoid hitting the database on each file request. Files will still be served through django which is inherently much slower
 than using your webserver so you still shouldn't serve static files this way. Also note that the files are cached
-encrypted and zipped if thos options are used.
+encrypted and zipped if those options are used. If this is not the desired behaviour, set ``DATABASE_FILES_CACHE_UNENCRYPTED`` to True.
 
 	DATABASE_FILES_CACHE = False
+	DATABASE_FILES_CACHE_UNENCRYPTED = False

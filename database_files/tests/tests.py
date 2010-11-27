@@ -6,6 +6,7 @@ from django.core.cache import cache
 from django.core import files
 from django.test import TestCase
 import StringIO
+import os
 
 def create_test_object(estring, encrypted=False, compressed=False):
 	test_file = files.temp.NamedTemporaryFile(
@@ -38,9 +39,12 @@ class DatabaseFilesTestCase(TestCase):
 		t, test_file = create_test_object('1234567890')
 		self.assertEqual(DatabaseFile.objects.count(), 1)
 		t = Thing.objects.get(pk=t.pk)
-		self.assertEqual(t.upload.file.size, 10)
-		self.assertEqual(t.upload.file.name, test_file.name)
-		self.assertEqual(t.upload.file.read(), '1234567890')
+		f = t.upload
+		self.assertEqual(f.size, 10)
+		testfile_path, testfile_name = os.path.split(test_file.name)
+		dbfile_path, dbfile_name = os.path.split(f.name)
+		self.assertEqual(dbfile_name, testfile_name)
+		self.assertEqual(f.read(), '1234567890')
 		t.upload.delete()
 		self.assertEqual(DatabaseFile.objects.count(), 0)
 

@@ -11,15 +11,9 @@ class DatabaseStorage(Storage):
 		self.compress = compress
 		super(DatabaseStorage, self).__init__(*args, **kwargs)
 
-	def _generate_name(self, pk):
-		"""
-		Replaces the filename with the specified pk
-		"""
-		return str(pk)
-
 	def _open(self, name, mode='rb'):
 		try:
-			f = models.DatabaseFile.objects.get(pk=name)
+			f = models.DatabaseFile.objects.get(filepath=name)
 		except models.DatabaseFile.DoesNotExist:
 			return None
 		return f.retreive()
@@ -32,41 +26,44 @@ class DatabaseStorage(Storage):
 				encrypt=self.encrypt,
 				compress=self.compress,
 				)
-		return self._generate_name(f.pk)
+		return name
 
 	def exists(self, name):
-		return False
-		# return models.File.objects.filter(filepath=name).exists()
+		return models.DatabaseFile.objects.filter(filepath=name).exists()
 
 	def delete(self, name):
 		try:
-			models.DatabaseFile.objects.get(pk=name).delete()
+			models.DatabaseFile.objects.get(filepath=name).delete()
 		except models.DatabaseFile.DoesNotExist:
 			pass
 
 	def url(self, name):
-		return reverse('database_file', kwargs={'file_id': name})
+		try:
+			file = models.DatabaseFile.objects.get(filepath=name)
+		except ObjectDoesNotExist:
+			return None
+		return reverse('database_file', kwargs={'file_id': file.pk})
 
 	def size(self, name):
 		try:
-			return models.DatabaseFile.objects.get(pk=name).size
+			return models.DatabaseFile.objects.get(filepath=name).size
 		except models.DatabaseFile.DoesNotExist:
 			return 0
 
 	def modified_time(self, name):
 		try:
-			return models.DatabaseFile.objects.get(pk=name).modified_time
+			return models.DatabaseFile.objects.get(filepath=name).modified_time
 		except models.DatabaseFile.DoesNotExist:
 			return None
 
 	def accessed_time(self, name):
 		try:
-			return models.DatabaseFile.objects.get(pk=name).accessed_time
+			return models.DatabaseFile.objects.get(filepath=name).accessed_time
 		except models.DatabaseFile.DoesNotExist:
 			return None
 
 	def created_time(self, name):
 		try:
-			return models.DatabaseFile.objects.get(pk=name).created_time
+			return models.DatabaseFile.objects.get(filepath=name).created_time
 		except models.DatabaseFile.DoesNotExist:
 			return None
