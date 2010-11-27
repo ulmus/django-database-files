@@ -19,14 +19,19 @@ class DatabaseStorage(Storage):
 		return f.retreive()
 
 	def _save(self, name, content):
+		newname = name
+		postpend = 0
+		while self.exists(newname):
+			postpend += 1
+			newname = name + "-" + unicode(postpend)
 		f = models.DatabaseFile.objects.create(
-				filepath=name,
+				filepath=newname,
 				)
 		f.store(content,
 				encrypt=self.encrypt,
 				compress=self.compress,
 				)
-		return name
+		return newname
 
 	def exists(self, name):
 		return models.DatabaseFile.objects.filter(filepath=name).exists()

@@ -3,7 +3,6 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 import mimetypes
 from database_files.models import DatabaseFile
-from django.template.defaultfilters import slugify
 
 @cache_control(max_age=86400)
 def serve(request, file_id):
@@ -17,5 +16,5 @@ def serve(request, file_id):
 	mimetype = mimetypes.guess_type(safe_filename)[0] or 'application/octet-stream'
 	response = HttpResponse(f.retreive(), mimetype=mimetype)
 	response['Content-Length'] = f.size
-	response['Content-Disposition'] = "filename=%s" % safe_filename
+	response['Content-Disposition'] = "attachment; filename=%s" % safe_filename
 	return response
