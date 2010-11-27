@@ -40,11 +40,7 @@ class DatabaseStorage(Storage):
 	def url(self, name):
 		try:
 			file = models.DatabaseFile.objects.get(filepath=name)
-<<<<<<< HEAD
 		except models.DatabaseFile.DoesNotExist:
-=======
-		except ObjectDoesNotExist:
->>>>>>> refs/remotes/origin/master
 			return None
 		return reverse('database_file', kwargs={'file_id': file.pk})
 
