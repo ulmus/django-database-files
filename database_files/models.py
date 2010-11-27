@@ -41,6 +41,7 @@ class DatabaseFileStore(models.Model):
 
 class DatabaseFile(models.Model):
 	filepath = models.TextField(max_length=250, blank=True, null=True, db_index=True, unique=True)
+	nicename = models.TextField(max_length=250, blank=True, null=True)
 	filestore = models.OneToOneField("DatabaseFileStore", blank=True, null=True)
 	size = models.IntegerField(blank=True, null=True)
 	encrypted = models.BooleanField(default=False, editable=False)
@@ -64,6 +65,7 @@ class DatabaseFile(models.Model):
 		"""
 		estring = file.read()
 		self.size = file.size
+		self.nicename = file.name
 
 		if DBF_SETTINGS["DATABASE_FILES_CACHE"] and DBF_SETTINGS["DATABASE_FILES_CACHE_UNENCRYPTED"]:
 			# Pre-fill the cache, the reasoning being that the file will probably be needed
@@ -123,11 +125,12 @@ class DatabaseFile(models.Model):
 			estring = self._process_string(estring)
 
 		string_file = StringIO(estring)
-		django_file = files.File(string_file)
+		django_file = DBFile(string_file)
 		django_file.name = self.filepath
 		django_file.mode = mode
 		django_file.size = self.size
 		django_file.url = self.get_absolute_url()
+		django_file.label = self.nicename
 
 		self.accessed_time = datetime.now()
 		self.save()
@@ -192,3 +195,6 @@ class DatabaseFile(models.Model):
 
 	def get_cache_key(self):
 		return "DJANGO-DATABASE_FILE-%s" % self.pk
+
+class DBFile(files.File):
+	label = ""

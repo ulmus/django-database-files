@@ -3,6 +3,7 @@ from database_files.module_settings import DBF_SETTINGS
 from django.core.files.storage import Storage
 from django.core.urlresolvers import reverse
 from django.conf import settings
+import os
 
 class DatabaseStorage(Storage):
 
@@ -20,10 +21,12 @@ class DatabaseStorage(Storage):
 
 	def _save(self, name, content):
 		newname = name
+		newpath, newfilename = os.path.split(name)
+		newfilenamestem, newfilenameext = os.path.splitext(newfilename)
 		postpend = 0
 		while self.exists(newname):
 			postpend += 1
-			newname = name + "-" + unicode(postpend)
+			newname = newpath + newfilenamestem + "-" + unicode(postpend) + newfilenameext
 		f = models.DatabaseFile.objects.create(
 				filepath=newname,
 				)

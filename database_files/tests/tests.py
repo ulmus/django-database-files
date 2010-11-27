@@ -48,6 +48,11 @@ class DatabaseFilesTestCase(TestCase):
 		t.upload.delete()
 		self.assertEqual(DatabaseFile.objects.count(), 0)
 
+	def test_adding_identical_file(self):
+		t, test_file = create_test_object('1234567890')
+		self.assertEqual(DatabaseFile.objects.count(), 1)
+
+
 class DatabaseFilesViewTestCase(TestCase):
 	compress = False
 	encrypt = False
