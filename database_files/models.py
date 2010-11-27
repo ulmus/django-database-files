@@ -40,8 +40,8 @@ class DatabaseFileStore(models.Model):
 	content = models.TextField(blank=True, null=True)
 
 class DatabaseFile(models.Model):
-	filepath = models.TextField(max_length=250, blank=True, null=True, db_index=True, unique=True)
-	nicename = models.TextField(max_length=250, blank=True, null=True)
+	filepath = models.CharField(max_length=250, blank=True, null=True, db_index=True, unique=True)
+	nicename = models.CharField(max_length=250, blank=True, null=True)
 	filestore = models.OneToOneField("DatabaseFileStore", blank=True, null=True)
 	size = models.IntegerField(blank=True, null=True)
 	encrypted = models.BooleanField(default=False, editable=False)
