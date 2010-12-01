@@ -62,7 +62,17 @@ Caching
 If ``DATABASE_FILES_CACHE`` is set, the DatabaseStorage will use the cache provided in the ``CACHE_BACKEND`` to cache file
 content to avoid hitting the database on each file request. Files will still be served through django which is inherently much slower
 than using your webserver so you still shouldn't serve static files this way. Also note that the files are cached
-encrypted and zipped if those options are used. If this is not the desired behaviour, set ``DATABASE_FILES_CACHE_UNENCRYPTED`` to True.
+encrypted and zipped if those options are used. If this is not the desired behaviour, set ``DATABASE_FILES_CACHE_UNENCRYPTED`` to True to gain some
+performance.
 
 	DATABASE_FILES_CACHE = False
 	DATABASE_FILES_CACHE_UNENCRYPTED = False
+
+
+Troubleshooting
+---------------
+
+If you get the error message ``OperationalError: (1153, "Got a packet bigger than 'max_allowed_packet' bytes")`` this means that the file is
+larger than what your mysql server accepts (usually 1 MB). This can be resolved by setting the ``max_allowed_packet`` setting in your ``my.cnf`` file
+to a higher number and by sanitizing your file upload handling to discard files larger than that size. Database storage is probably not meant for huge
+media files!
